@@ -68,4 +68,14 @@ Available options:
 -v, --verbose      verbose logging
 -w, --wait         will not close sibling processes on error
 
+-e, --experimental enable experimental features
+```
+
+### Experimental
+
+To add environment variables use the `-e` flag.  
+ENV variable can be global for all child commands or private for a command.
+
+```bash
+parallelshell -e TEST_ENV=global "echo \$TEST_ENV" "TEST_ENV=private echo \$TEST_ENV"
 ```

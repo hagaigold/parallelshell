@@ -27,6 +27,7 @@
     "bluebird": "^3.5.0",
     "chai": "^4.0.2",
     "coffee-script": "^1.12.6",
+    "cross-spawn": "^6.0.5",
     "mocha": "^3.4.2"
   }
 }

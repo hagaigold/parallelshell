@@ -3,6 +3,8 @@ should = chai.should()
 spawn = require("child_process").spawn
 Promise = require("bluebird")
 
+crossSpawn = require('cross-spawn')
+
 verbose = 0
 
 # cross platform compatibility
@@ -35,6 +37,16 @@ spawnParallelshell = (cmd) ->
     cwd: process.cwd()
   }
 
+envVarExpected = "global-child"
+if process.platform == "win32"
+  envVarTest = ["_PS_GLOBAL=global", "_PS_TEST=child echo %_PS_GLOBAL%-%_PS_TEST%"]
+else
+  envVarTest = ["_PS_GLOBAL=global", "_PS_TEST=child echo $_PS_GLOBAL-$_PS_TEST"]
+
+crrosSpawn_envVarTest = () ->
+  return crossSpawn 'node', ['./index.js', '-e'].concat(envVarTest)
+
+
 killPs = (ps) ->
   ps.kill "SIGINT"
 
@@ -60,6 +72,18 @@ testOutput = (cmd, expectedOutput) ->
     ps.stdout.on "end", () ->
       for line,i in expectedOutput
         line.should.equal output[i]
+      resolve()
+
+testOutput2 = (expectedOutput) ->
+  return new Promise (resolve) ->
+    ps = crrosSpawn_envVarTest()
+    spyOnPs ps, 3
+    ps.stdout.setEncoding("utf8")
+    output = ""
+    ps.stdout.on "data", (data) ->
+      output = output.concat(data.trim())
+    ps.stdout.on "end", () ->
+      expectedOutput.should.equal output
       resolve()
 
 describe "parallelshell", ->
@@ -120,3 +144,9 @@ describe "parallelshell", ->
       ps.signalCode.should.equal "SIGINT"
       done()
     killPs(ps)
+
+  it "envs should be equal to 'global-child' ", (done) ->
+    Promise.all([testOutput2(envVarExpected)])
+    .then -> done()
+    .catch done
+    return

@@ -3,7 +3,9 @@
 'use strict';
 var spawn = require('child_process').spawn;
 
-var sh, shFlag, children, args, wait, cmds, verbose, i ,len;
+var sh, shFlag, children, args, wait, cmds, verbose, i, len;
+var debug = false, experimental = false, globalEnv = {};
+
 // parsing argv
 cmds = [];
 args = process.argv.slice(2);
@@ -18,6 +20,14 @@ for (i = 0, len = args.length; i < len; i++) {
             case '--verbose':
                 verbose = true;
                 break;
+            case '-d':
+            case '--debug':
+                debug = true;
+                break;
+            case '-e':
+            case '--experimental':
+                experimental = true;
+                break;
             case '-h':
             case '--help':
                 console.log('-h, --help         output usage information');
@@ -26,6 +36,9 @@ for (i = 0, len = args.length; i < len; i++) {
                 process.exit();
                 break;
         }
+    } else if (experimental && args[i].indexOf(' ') < 0 && args[i].indexOf('=') > 0) {
+        var [ge, ] = getEnv(args[i]);
+        Object.assign(globalEnv, ge);
     } else {
         cmds.push(args[i]);
     }
@@ -95,15 +108,30 @@ if (process.platform === 'win32') {
     shFlag = '-c';
 }
 
+if (debug) {
+    console.log('args: %o',args);
+    console.log('globals: %o',globalEnv);
+    console.log('cmds: %o',cmds);
+}
+
 // start the children
-children = [];
+var children = [];
 cmds.forEach(function (cmd) {
+    if (debug) {
+        console.log('cmd: ' + cmd);
+    }
+
+    var childEnv = {};
+    if (experimental) {
+        [childEnv, cmd] = getEnv(cmd);
+    }
+
     if (process.platform != 'win32') {
       cmd = "exec "+cmd;
     }
     var child = spawn(sh,[shFlag,cmd], {
         cwd: parseInt(process.versions.node) < 8 ? process.cwd : process.cwd(),
-        env: process.env,
+        env: Object.assign({}, process.env, globalEnv, childEnv),
         stdio: ['pipe', process.stdout, process.stderr]
     })
     .on('close', childClose);
@@ -113,3 +141,34 @@ cmds.forEach(function (cmd) {
 
 // close all children on ctrl+c
 process.on('SIGINT', close)
+
+//
+// A very *simple* environment variables parsing.
+//  for much better implementation, please see cross-env package:
+//  https://github.com/kentcdodds/cross-env
+//
+function getEnv(cmd) {
+    var j, len, e = {};
+    var rest = null;
+    const chunks = cmd.split(' ');
+    for (j = 0, len = chunks.length; j < len; j++) {
+        // skip empty chunks.
+        if (chunks[j] === '') {
+            continue;
+        }
+
+        const varValuePair = chunks[j].split('=')
+        if (varValuePair.length === 2) {
+            if (debug) {
+                console.log('env var: ' + chunks[j]);
+            }
+            e[varValuePair[0]] = varValuePair[1];
+        } else {
+            // no more variables.
+            rest = chunks.slice(j).join(' ');
+            break;
+        }
+    }
+
+    return [e, rest];
+}
